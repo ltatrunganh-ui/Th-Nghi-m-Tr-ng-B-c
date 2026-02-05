@@ -1,0 +1,420 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phòng Thí Nghiệm Hóa Học: Phản Ứng Tráng Bạc</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM UMD -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #010409;
+            color: #f8fafc;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        @keyframes bubble {
+            0% { transform: translateY(0) scale(1); opacity: 0; }
+            20% { opacity: 0.7; }
+            100% { transform: translateY(-150px) scale(0.3); opacity: 0; }
+        }
+        .bubble {
+            animation: bubble 2s infinite ease-in;
+        }
+        .silver-mirror {
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 25%, #f1f5f9 50%, #475569 75%, #ffffff 100%);
+            background-size: 200% 200%;
+            animation: mirror-shimmer 4s infinite linear;
+            box-shadow: inset 0 0 40px rgba(255,255,255,0.8);
+        }
+        @keyframes mirror-shimmer {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        .wood-texture {
+            background-color: #451a03;
+            background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 3px);
+            border: 1px solid #78350f;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
+        }
+        .test-tube-liquid {
+            transition: background-color 1.5s ease, height 1.2s cubic-bezier(0.4, 0, 0.2, 1), filter 1.5s ease;
+        }
+        .vertical-text {
+            writing-mode: vertical-rl;
+        }
+        @keyframes drop {
+          0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+          100% { transform: translate(-50%, 180px) scale(0.8); opacity: 0; }
+        }
+        .animate-drop {
+            animation: drop 0.8s infinite;
+        }
+        /* Custom scrollbar */
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- TYPES / CONSTANTS ---
+        const ExperimentStep = {
+            IDLE: 0,
+            ADDING_AGNO3: 1,
+            ADDING_NH3_PRECIPITATE: 2,
+            ADDING_NH3_DISSOLVE: 3,
+            ADDING_GLUCOSE: 4,
+            HEATING: 5,
+            SILVERED: 6
+        };
+
+        // --- COMPONENTS ---
+
+        const TestTube = ({ level, color, isCloudy, isHeating, silverProgress, isAdding, pipetteColor }) => {
+            return (
+                <div className="relative flex flex-col items-center justify-end h-full w-full pb-10">
+                    {/* GIÁ ĐỠ (BACK) */}
+                    <div className="absolute bottom-10 w-80 h-48 pointer-events-none z-0">
+                        <div className="absolute bottom-4 left-4 w-4 h-44 wood-texture opacity-60"></div>
+                        <div className="absolute bottom-4 right-4 w-4 h-44 wood-texture opacity-60"></div>
+                        <div className="absolute top-0 left-0 w-full h-5 wood-texture opacity-40"></div>
+                        <div className="absolute bottom-24 left-0 w-full h-5 wood-texture opacity-40"></div>
+                        <div className="absolute bottom-0 left-0 w-full h-8 wood-texture rounded-sm shadow-2xl"></div>
+                    </div>
+
+                    {/* ĐÈN CỒN */}
+                    <div className={`absolute bottom-[-10px] z-10 transition-all duration-1000 ${isHeating ? 'opacity-100 scale-100' : 'opacity-0 scale-90 translate-y-10'}`}>
+                        <div className="relative flex flex-col items-center">
+                            <div className="w-32 h-24 bg-blue-100/5 backdrop-blur-xl border border-white/20 rounded-t-[50px] rounded-b-2xl shadow-inner relative overflow-hidden">
+                                <div className="absolute bottom-0 w-full h-2/3 bg-blue-500/10"></div>
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 w-1.5 h-16 bg-slate-300/40 rounded-full"></div>
+                            </div>
+                            <div className="w-10 h-5 bg-slate-700 -mt-1 rounded-t-md shadow-lg border-b border-black"></div>
+                            <div className="absolute -top-28 flex flex-col items-center animate-pulse">
+                                <div className="w-16 h-32 bg-gradient-to-t from-orange-600 via-yellow-400 to-transparent rounded-full blur-2xl opacity-60"></div>
+                                <div className="w-8 h-20 bg-gradient-to-t from-blue-600 via-cyan-300 to-transparent rounded-full blur-lg -mt-20 opacity-90"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* KHỐI ỐNG NGHIỆM & PIPETTE */}
+                    <div className="relative z-40 mb-24">
+                        {/* PIPETTE */}
+                        <div className={`absolute left-1/2 -translate-x-1/2 z-50 transition-all duration-1000 ease-in-out pointer-events-none ${
+                            isAdding ? 'top-[-220px] opacity-100 scale-100' : 'top-[-400px] opacity-0 scale-95'
+                        }`}>
+                            <div className="relative flex flex-col items-center">
+                                <div className="w-4 h-48 bg-white/20 backdrop-blur-lg border-x border-t border-white/40 rounded-t-full relative shadow-xl">
+                                    <div className="absolute bottom-0 w-full rounded-b-sm transition-all duration-1000"
+                                        style={{ height: isAdding ? '15%' : '75%', backgroundColor: pipetteColor }}></div>
+                                    <div className="absolute inset-y-0 right-0 w-1 flex flex-col justify-around py-4 opacity-30">
+                                        {[...Array(8)].map((_, i) => <div key={i} className="h-px bg-white w-full"></div>)}
+                                    </div>
+                                </div>
+                                <div className="w-1.5 h-12 bg-white/20 border-x border-b border-white/40 -mt-0.5"></div>
+                                {isAdding && (
+                                    <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full rounded-tr-[1px] rotate-45 animate-drop shadow-sm" 
+                                         style={{ backgroundColor: pipetteColor }}></div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* THÂN ỐNG NGHIỆM */}
+                        <div className={`relative w-28 h-[450px] border-[3px] border-white/30 rounded-b-full overflow-hidden bg-white/5 backdrop-blur-[4px] shadow-[0_30px_60px_rgba(0,0,0,0.6)] transition-all duration-500 ${isHeating ? 'ring-4 ring-orange-500/15' : ''}`}>
+                            <div className="absolute top-12 right-0 bg-white/5 border-l border-white/20 px-1 py-3 rounded-l-md pointer-events-none">
+                                <div className="text-[6px] text-blue-300 font-bold vertical-text tracking-widest opacity-50 uppercase">Borosilicate</div>
+                            </div>
+
+                            <div className="absolute inset-y-0 left-3 flex flex-col justify-between py-20 opacity-50 pointer-events-none">
+                                {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((ml) => (
+                                    <div key={ml} className="flex items-center gap-2">
+                                        <div className={`h-[1.5px] bg-white ${ml % 5 === 0 ? 'w-6' : 'w-4'}`}></div>
+                                        <span className="text-[9px] text-white font-mono font-bold">{ml} ml</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="absolute bottom-0 w-full test-tube-liquid shadow-inner"
+                                style={{ 
+                                    height: `${level}%`, 
+                                    backgroundColor: color,
+                                    filter: isCloudy ? 'blur(3.5px) contrast(1.4) brightness(0.85)' : 'none'
+                                }}>
+                                {isHeating && (
+                                    <div className="absolute inset-0 overflow-hidden">
+                                        {[...Array(30)].map((_, i) => (
+                                            <div key={i} className="bubble absolute bg-white/40 rounded-full"
+                                                style={{
+                                                    width: `${Math.random() * 3 + 1.5}px`,
+                                                    height: `${Math.random() * 3 + 1.5}px`,
+                                                    left: `${Math.random() * 85 + 5}%`,
+                                                    bottom: `-10px`,
+                                                    animationDelay: `${Math.random() * 2.5}s`,
+                                                    animationDuration: `${0.6 + Math.random()}s`
+                                                }}></div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="absolute inset-0 silver-mirror pointer-events-none transition-opacity duration-[6000ms]"
+                                style={{ 
+                                    opacity: silverProgress,
+                                    clipPath: `inset(${Math.max(0, 100 - level - 1)}% 0 0 0)`
+                                }}></div>
+
+                            <div className="absolute top-0 left-8 w-4 h-full bg-gradient-to-r from-white/10 to-transparent rounded-full blur-[4px]"></div>
+                        </div>
+                        <div className="absolute top-[-5px] left-[-10px] right-[-10px] h-6 border-[3px] border-white/30 rounded-full bg-white/10 shadow-lg pointer-events-none"></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ControlPanel = ({ step, onNext, onReset, temperature, isAdding }) => {
+            const getButtonText = () => {
+                if (isAdding) return 'Đang nạp dung dịch...';
+                switch (step) {
+                    case ExperimentStep.IDLE: return 'Thêm 1ml AgNO3 1%';
+                    case ExperimentStep.ADDING_AGNO3: return 'Nhỏ NH3 (tạo kết tủa)';
+                    case ExperimentStep.ADDING_NH3_PRECIPITATE: return 'Thêm NH3 dư (tan kết tủa)';
+                    case ExperimentStep.ADDING_NH3_DISSOLVE: return 'Thêm 1ml Glucose 1%';
+                    case ExperimentStep.ADDING_GLUCOSE: return 'Bắt đầu đun nóng nhẹ';
+                    case ExperimentStep.HEATING: return 'Phản ứng đang diễn ra...';
+                    case ExperimentStep.SILVERED: return 'Phản ứng hoàn tất';
+                    default: return 'Tiếp tục';
+                }
+            };
+
+            const isComplete = step === ExperimentStep.SILVERED;
+            const isBusy = step === ExperimentStep.HEATING || isAdding;
+
+            return (
+                <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
+                    <h2 className="text-[10px] font-black text-slate-500 mb-6 flex items-center gap-3 tracking-[0.2em] uppercase">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-pulse"></span>
+                        Bảng Điều Khiển
+                    </h2>
+                    <div className="space-y-6">
+                        <div className="bg-black/40 p-5 rounded-2xl border border-slate-800/50">
+                            <div className="flex justify-between items-end mb-2">
+                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Nhiệt độ hiện tại</span>
+                                <span className={`text-2xl font-mono font-bold transition-colors ${temperature > 60 ? 'text-orange-500' : 'text-blue-400'}`}>
+                                    {temperature}<span className="text-sm">°C</span>
+                                </span>
+                            </div>
+                            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden p-[2px] border border-slate-800">
+                                <div className="h-full bg-gradient-to-r from-blue-600 via-yellow-500 to-orange-600 transition-all duration-300 rounded-full" 
+                                    style={{ width: `${Math.min(100, (temperature / 80) * 100)}%` }}></div>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={onNext} disabled={isBusy || isComplete}
+                                className={`relative overflow-hidden w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                                    isBusy || isComplete 
+                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700/30' 
+                                        : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                                }`}>
+                                {getButtonText()}
+                            </button>
+                            <button onClick={onReset}
+                                className="w-full py-3 rounded-xl text-[9px] text-slate-500 font-bold uppercase tracking-widest border border-slate-800 hover:bg-slate-800 hover:text-white transition-all">
+                                Làm sạch ống nghiệm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const InfoPanel = ({ messages }) => {
+            const scrollRef = useRef(null);
+            useEffect(() => {
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }, [messages]);
+
+            return (
+                <div className="bg-slate-900/90 text-slate-200 rounded-3xl shadow-2xl flex flex-col h-[400px] overflow-hidden border border-slate-800 backdrop-blur-md">
+                    <div className="bg-slate-950 px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 border-b border-slate-800 flex justify-between items-center">
+                        <span>Nhật ký thí nghiệm & Lý thuyết</span>
+                    </div>
+                    <div ref={scrollRef} className="flex-1 p-6 space-y-4 overflow-y-auto font-mono text-xs scrollbar-thin">
+                        <div className="space-y-3 pb-4 border-b border-slate-800">
+                            <div className="text-blue-400 font-bold">1. Phản ứng tráng gương của glucose:</div>
+                            <div className="bg-black/40 p-3 rounded-lg border border-slate-800 leading-relaxed text-[10px]">
+                                HOCH₂[CHOH]₄CHO + 2AgNO₃ + 3NH₃ + H₂O &rarr; HOCH₂[CHOH]₄COONH₄ + 2Ag&darr; + 2NH₄NO₃
+                            </div>
+                            <div className="text-blue-400 font-bold mt-4">2. Vai trò các chất:</div>
+                            <ul className="list-disc list-inside text-slate-300 space-y-1">
+                                <li>AgNO₃: <span className="text-orange-400">Chất oxi hóa</span></li>
+                                <li>Glucose: <span className="text-green-400">Chất khử</span></li>
+                            </ul>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="text-blue-400 font-bold">3. Diễn biến thực hành:</div>
+                            {messages.map((msg, idx) => (
+                                <div key={idx} className="flex gap-3">
+                                    <span className="text-slate-600">[{idx + 1}]</span>
+                                    <span className={idx === messages.length - 1 ? 'text-green-400 font-bold' : 'text-slate-300'}>{msg}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="p-4 bg-black/60 text-[9px] text-slate-500 border-t border-slate-800">
+                        <p>Giải thích: Dung dịch AgNO₃ trong NH₃ đã oxi hoá glucose tạo thành muối amoni gluconat và bạc kim loại bám vào thành ống nghiệm.</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        const App = () => {
+            const [state, setState] = useState({
+                step: ExperimentStep.IDLE,
+                liquidLevel: 0,
+                liquidColor: 'transparent',
+                isCloudy: false,
+                isHeating: false,
+                temperature: 25,
+                silverProgress: 0,
+                isAdding: false,
+                pipetteColor: 'transparent',
+                messages: ['Chuẩn bị ống nghiệm sạch chia vạch và pipette.', 'Sẵn sàng tiến hành thí nghiệm.']
+            });
+
+            const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
+
+            const performDrop = (nextStepState, color) => {
+                updateState({ isAdding: true, pipetteColor: color });
+                setTimeout(() => {
+                    updateState({ ...nextStepState, isAdding: false });
+                }, 2000);
+            };
+
+            const resetExperiment = () => {
+                updateState({
+                    step: ExperimentStep.IDLE,
+                    liquidLevel: 0,
+                    liquidColor: 'transparent',
+                    isCloudy: false,
+                    isHeating: false,
+                    temperature: 25,
+                    silverProgress: 0,
+                    isAdding: false,
+                    pipetteColor: 'transparent',
+                    messages: ['Ống nghiệm đã được vệ sinh sạch. Sẵn sàng thí nghiệm mới.']
+                });
+            };
+
+            const nextStep = () => {
+                if (state.isAdding) return;
+                switch (state.step) {
+                    case ExperimentStep.IDLE:
+                        performDrop({
+                            step: ExperimentStep.ADDING_AGNO3, liquidLevel: 15, 
+                            liquidColor: 'rgba(210, 230, 255, 0.2)',
+                            messages: [...state.messages, 'Bước 1: Cho 1ml dung dịch AgNO₃ 1% vào ống nghiệm.']
+                        }, 'rgba(200, 220, 255, 0.8)');
+                        break;
+                    case ExperimentStep.ADDING_AGNO3:
+                        performDrop({
+                            step: ExperimentStep.ADDING_NH3_PRECIPITATE, liquidLevel: 25, 
+                            liquidColor: 'rgba(85, 60, 45, 0.9)', isCloudy: true,
+                            messages: [...state.messages, 'Nhỏ từng giọt NH₃: Kết tủa nâu Ag2O xuất hiện.']
+                        }, 'rgba(255, 255, 255, 0.9)');
+                        break;
+                    case ExperimentStep.ADDING_NH3_PRECIPITATE:
+                        performDrop({
+                            step: ExperimentStep.ADDING_NH3_DISSOLVE, liquidLevel: 45, 
+                            liquidColor: 'rgba(250, 250, 255, 0.1)', isCloudy: false,
+                            messages: [...state.messages, 'Thêm NH₃ đến khi kết tủa tan hết (phức bạc).']
+                        }, 'rgba(255, 255, 255, 0.9)');
+                        break;
+                    case ExperimentStep.ADDING_NH3_DISSOLVE:
+                        performDrop({
+                            step: ExperimentStep.ADDING_GLUCOSE, liquidLevel: 60,
+                            messages: [...state.messages, 'Bước 2: Thêm tiếp 1ml dung dịch glucose 1%.']
+                        }, 'rgba(255, 255, 200, 0.6)');
+                        break;
+                    case ExperimentStep.ADDING_GLUCOSE:
+                        updateState({ step: ExperimentStep.HEATING, isHeating: true,
+                                      messages: [...state.messages, 'Bước 3: Đun nóng nhẹ hỗn hợp (60-80°C).'] });
+                        break;
+                }
+            };
+
+            useEffect(() => {
+                let interval;
+                if (state.step === ExperimentStep.HEATING) {
+                    interval = setInterval(() => {
+                        setState(prev => {
+                            if (prev.temperature < 72) return { ...prev, temperature: prev.temperature + 1 };
+                            if (prev.silverProgress < 1) {
+                                const nextProgress = prev.silverProgress + 0.035;
+                                if (nextProgress >= 1) {
+                                    return { ...prev, silverProgress: 1, step: ExperimentStep.SILVERED, isHeating: false,
+                                             messages: [...prev.messages, 'Hiện tượng: Thành ống nghiệm sáng bóng như gương. Thành công!'] };
+                                }
+                                return { ...prev, silverProgress: nextProgress };
+                            }
+                            return prev;
+                        });
+                    }, 150);
+                }
+                return () => clearInterval(interval);
+            }, [state.step]);
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-4 md:p-8 overflow-hidden">
+                    <header className="mb-6 text-center w-full max-w-5xl">
+                        <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase">VIRTUAL <span className="text-blue-500">AG-LAB</span> PRO</h1>
+                        <p className="text-slate-500 text-[10px] mt-2 font-mono uppercase tracking-[0.4em]">Thí nghiệm phản ứng tráng gương của Glucose</p>
+                    </header>
+                    <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-4 flex flex-col gap-6 order-2 lg:order-1">
+                            <ControlPanel step={state.step} onNext={nextStep} onReset={resetExperiment} temperature={state.temperature} isAdding={state.isAdding} />
+                            <InfoPanel messages={state.messages} />
+                        </div>
+                        <div className="lg:col-span-8 flex flex-col bg-slate-900/20 rounded-[3rem] border border-slate-800 shadow-2xl relative overflow-hidden order-1 lg:order-2">
+                            <div className="absolute bottom-0 w-full h-40 bg-gradient-to-t from-black to-slate-900 border-t border-slate-800"></div>
+                            <div className="relative z-10 flex-1 flex items-center justify-center p-10 min-h-[650px]">
+                                <TestTube level={state.liquidLevel} color={state.liquidColor} isCloudy={state.isCloudy} isHeating={state.isHeating} silverProgress={state.silverProgress} isAdding={state.isAdding} pipetteColor={state.pipetteColor} />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
